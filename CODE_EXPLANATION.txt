@@ -1,0 +1,1756 @@
+================================================================
+JOBPILOT - CODE EXPLANATION FOR BEGINNERS
+================================================================
+
+
+================================================================
+HOW NEXT.JS WORKS (THE BIG IDEA)
+================================================================
+
+In Next.js, the folder structure IS your URLs.
+You don't manually define routes — Next.js reads your folders
+and files and creates pages automatically.
+
+    app/
+      page.tsx                  ->  localhost:3000/
+      auth/
+        login/
+          page.tsx              ->  localhost:3000/auth/login
+        signup/
+          page.tsx              ->  localhost:3000/auth/signup
+
+Every file named page.tsx inside the app/ folder becomes a
+real webpage. That's the whole trick.
+
+
+================================================================
+1. app/layout.tsx — The wrapper around everything
+================================================================
+
+    import { ThemeProvider } from "@/components/ThemeProvider";
+    import "./globals.css";
+
+Imports pull in code from other files. @/ is a shortcut that
+means "start from the root of the project". So
+@/components/ThemeProvider means job-tracker/components/ThemeProvider.tsx.
+
+----
+
+    const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] })
+
+This loads a Google Font called Geist at build time (not from a
+CDN at runtime). Next.js handles fonts specially so your page
+doesn't flicker while the font loads.
+
+----
+
+    export const metadata: Metadata = {
+      title: "JobPilot",
+      description: "Navigate your job search with confidence",
+    }
+
+This sets the browser tab title and the description search
+engines see. "export" means this variable is handed to Next.js
+to use — you don't call it yourself.
+
+----
+
+    export default function RootLayout({ children }) {
+      return (
+        <html lang="en">
+          <body>
+            <ThemeProvider>{children}</ThemeProvider>
+          </body>
+        </html>
+      )
+    }
+
+RootLayout is the shell that wraps every single page in the app.
+Think of it like a picture frame — the frame stays the same,
+only the picture inside (children) changes as you navigate.
+
+{children} is a React concept — it means "whatever page the
+user is currently on, render it here."
+
+ThemeProvider wraps everything so the dark/light mode system
+works across all pages at once.
+
+
+================================================================
+2. app/page.tsx — The landing page (localhost:3000/)
+================================================================
+
+    import Link from 'next/link'
+    import { Logo } from '@/components/Logo'
+    import { ThemeToggle } from '@/components/ThemeToggle'
+
+These are the three things this page needs:
+- Link       : Next.js's special <a> tag. It navigates between
+               pages without a full page reload (feels instant).
+- Logo       : Our custom logo component.
+- ThemeToggle: The sun/moon button.
+
+----
+
+    export default function Home() {
+      return (
+        <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950">
+
+"export default" means this is the main thing this file exports
+— Next.js picks it up as the page to render.
+
+The className values are Tailwind CSS — a system where you style
+things by adding short class names directly in your HTML instead
+of writing a separate CSS file:
+
+  min-h-screen      = make this div at least as tall as the screen
+  flex flex-col     = use flexbox, stack children vertically
+  bg-gray-50        = light gray background in light mode
+  dark:bg-gray-950  = almost-black background when dark mode is on
+
+----
+
+    <header className="px-8 py-5 flex items-center justify-between ...">
+      <Logo size="md" />
+      <div className="flex items-center gap-3">
+        <ThemeToggle />
+        <Link href="/auth/login">Log in</Link>
+        <Link href="/auth/signup">Get started</Link>
+      </div>
+    </header>
+
+The <header> holds the top navigation bar. "justify-between"
+pushes the Logo to the left and the buttons to the right.
+The href on each Link is the URL it navigates to — matching
+your folder structure.
+
+----
+
+    <main className="flex-1 flex flex-col items-center justify-center text-center px-6 py-24">
+
+"flex-1" makes this section grow to fill all remaining vertical
+space (so the content stays centered even on tall screens).
+"items-center justify-center" centers everything both
+horizontally and vertically.
+
+
+================================================================
+3. app/auth/login/page.tsx — The login page
+================================================================
+
+    'use client'
+
+This is the most important line to understand. In Next.js there
+are two types of components:
+
+  Server components (default)
+    - Rendered on the server, sent as HTML.
+    - CANNOT use useState, useEffect, or browser events like onClick.
+
+  Client components ('use client')
+    - Run in the browser.
+    - CAN use state, handle clicks, and interact with the user.
+
+The login page needs to track what the user is typing and respond
+to button clicks, so it MUST be a client component.
+
+----
+
+    const [email, setEmail] = useState('')
+    const [password, setPassword] = useState('')
+    const [error, setError] = useState('')
+    const [loading, setLoading] = useState(false)
+
+useState is React's way of remembering values that change.
+The pattern is always:
+
+    const [currentValue, functionToChangeIt] = useState(startingValue)
+
+So "email" holds what's in the email box right now, and
+"setEmail" is the function you call to update it. Every time
+a state value changes, React re-renders the component
+automatically to show the new value.
+
+----
+
+    async function handleLogin(e: React.FormEvent) {
+      e.preventDefault()   // stops the browser from refreshing the page on form submit
+      setError('')         // clear any previous error
+      setLoading(true)     // show "Logging in..." on the button
+
+"async" means this function can do things that take time (like
+a network request) without freezing the page.
+
+----
+
+    const supabase = createClient()
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+
+This calls Supabase (your backend/database service) to check
+the email and password. "await" means "wait for this to finish
+before moving on." The { error } syntax pulls the error property
+out of whatever Supabase sends back.
+
+----
+
+    if (error) {
+      setError(error.message)  // show the error message on screen
+      setLoading(false)        // re-enable the button
+      return                   // stop here, don't proceed
+    }
+
+    router.push('/dashboard')  // success — send the user to the dashboard
+
+router.push('/dashboard') is like clicking a link
+programmatically — it navigates the user to a new page
+after they log in.
+
+----
+
+    <form onSubmit={handleLogin} className="space-y-4">
+
+"onSubmit" connects the form's submit event to our handleLogin
+function. "space-y-4" adds equal vertical spacing between every
+child element automatically.
+
+----
+
+    <input
+      type="email"
+      value={email}
+      onChange={e => setEmail(e.target.value)}
+
+"value={email}" makes this a controlled input — React is in
+charge of what's displayed, not the browser. "onChange" fires
+every time the user types a character. "e.target.value" is the
+current text in the box, which we save with setEmail.
+
+----
+
+    {error && <p className="text-sm text-red-600">{error}</p>}
+
+{error && ...} is a common React pattern — it means "only show
+this paragraph if error is not empty." When there's no error,
+error is an empty string which is falsy, so nothing renders.
+
+----
+
+    <button disabled={loading}>
+      {loading ? 'Logging in...' : 'Log in'}
+    </button>
+
+"disabled={loading}" greys out the button while waiting for
+Supabase. The ? : is a ternary — a compact if/else:
+"if loading is true, show 'Logging in...', otherwise show 'Log in'."
+
+
+================================================================
+4. app/auth/signup/page.tsx — The signup page
+================================================================
+
+Nearly identical to login. The only real differences:
+
+    const { error } = await supabase.auth.signUp({ email, password })
+
+Calls signUp instead of signInWithPassword — creates a new
+account instead of checking an existing one.
+
+    <input minLength={6} placeholder="Min. 6 characters" />
+
+"minLength={6}" is built-in HTML validation — the browser won't
+even submit the form if the password is shorter than 6 characters.
+
+
+================================================================
+5. components/Logo.tsx — The logo
+================================================================
+
+    type LogoSize = 'sm' | 'md' | 'lg'
+
+This is TypeScript — it defines exactly what values size is
+allowed to be. If you try to write <Logo size="huge" /> TypeScript
+will immediately show you an error.
+
+----
+
+    const sizes = {
+      sm: { icon: 24, text: 'text-base' },
+      md: { icon: 32, text: 'text-xl' },
+      lg: { icon: 40, text: 'text-2xl' },
+    }
+
+A lookup table — when size="lg", we get icon: 40 (pixels) and
+text: 'text-2xl' (Tailwind class for large text). This avoids
+writing three separate if/else blocks.
+
+----
+
+    export function Logo({ size = 'md' }: { size?: LogoSize }) {
+      const { icon, text } = sizes[size]
+
+{ size = 'md' } means: accept a size prop, but if nobody passes
+one, default to 'md'. This is called destructuring with a default.
+
+The SVG inside is the actual vector drawing — the indigo square,
+briefcase shape, and upward arrow are all drawn with SVG path
+coordinates.
+
+
+================================================================
+6. components/ThemeProvider.tsx — Dark mode brain
+================================================================
+
+    'use client'
+
+    export function ThemeProvider({ children, ...props }) {
+      return (
+        <NextThemesProvider attribute="class" defaultTheme="system" enableSystem {...props}>
+          {children}
+        </NextThemesProvider>
+      )
+    }
+
+This is a thin wrapper around the next-themes library.
+Key settings:
+
+  attribute="class"    : Controls dark mode by adding/removing
+                         class="dark" on the <html> tag.
+  defaultTheme="system": On first visit, checks the OS setting
+                         (Windows dark mode, Mac appearance, etc.)
+  enableSystem         : Allows it to follow the OS preference automatically.
+
+Because it wraps {children} in layout.tsx, it makes dark mode
+available to the entire app from one place.
+
+
+================================================================
+7. components/ThemeToggle.tsx — The sun/moon button
+================================================================
+
+    const [mounted, setMounted] = useState(false)
+    useEffect(() => setMounted(true), [])
+
+    if (!mounted) return <div className="w-9 h-9" />
+
+This solves a subtle Next.js problem. The page first renders on
+the SERVER, which has no idea what theme the user picked (that's
+stored in their browser). If we rendered the icon on the server,
+it might show the wrong one and then flash to the correct one.
+
+The fix: render a blank placeholder on the server, then once the
+component loads in the BROWSER (useEffect runs), mounted becomes
+true and we render the real button.
+
+useEffect with an empty [] means "run this once, right after the
+component appears on screen."
+
+----
+
+    const { resolvedTheme, setTheme } = useTheme()
+    const isDark = resolvedTheme === 'dark'
+
+    <button onClick={() => setTheme(isDark ? 'light' : 'dark')}>
+
+useTheme() is a hook from next-themes that gives us the current
+theme and a function to change it. Clicking the button flips
+between dark and light.
+
+----
+
+    {isDark ? <SunIcon /> : <MoonIcon />}
+
+Show a sun when it's dark (click to go light), show a moon when
+it's light (click to go dark). The SVG icons are drawn inline
+with path coordinates.
+
+
+================================================================
+8. app/globals.css — Global styles
+================================================================
+
+    @import "tailwindcss";
+
+    @custom-variant dark (&:where(.dark, .dark *));
+
+The first line loads the entire Tailwind system. The second line
+tells Tailwind v4 what dark: means — "apply this style when any
+parent element has the class dark on it." Since next-themes puts
+class="dark" on <html>, every element on the page gets dark
+styles when dark mode is on.
+
+----
+
+    :root { --background: #ffffff; }
+    .dark { --background: #0a0a0a; }
+
+CSS custom properties (variables) — :root sets defaults for light
+mode, .dark overrides them for dark mode. These are the base
+background and text colors that the body uses.
+
+
+================================================================
+THE BIG PICTURE — HOW IT ALL CONNECTS
+================================================================
+
+    globals.css          <- Tailwind + dark mode rules
+          |
+    layout.tsx           <- <html> + fonts + ThemeProvider wraps everything
+          |
+    ThemeProvider        <- watches theme, adds/removes class="dark" on <html>
+          |
+    page.tsx             <- landing page, uses Logo + ThemeToggle
+    auth/login/page.tsx  <- login form, talks to Supabase
+    auth/signup/page.tsx <- signup form, talks to Supabase
+          ^
+    Logo.tsx             <- reusable SVG logo, used by all pages
+    ThemeToggle.tsx      <- reusable sun/moon button, used by all pages
+
+
+================================================================
+KEY NEXT.JS IDEAS TO REMEMBER
+================================================================
+
+1. Folder = URL
+   app/auth/login/page.tsx  ->  /auth/login
+
+2. layout.tsx wraps everything
+   Put shared things (fonts, providers) there.
+
+3. 'use client'
+   Add it when a component needs interactivity
+   (clicks, typing, state).
+
+4. useState
+   React's way to remember values that change.
+   const [value, setValue] = useState(initialValue)
+
+5. Link
+   Use it instead of <a> for navigation inside the app.
+   It navigates without a full page reload.
+
+6. async / await
+   Used when doing things that take time (API calls, database).
+   "await" pauses the function until the result is ready.
+
+7. Tailwind CSS
+   Style elements by adding class names directly in JSX.
+   dark: prefix makes a style apply only in dark mode.
+
+8. TypeScript
+   Adds type safety. Catches errors before you even run the code.
+   type LogoSize = 'sm' | 'md' | 'lg' means only those 3 values are allowed.
+
+================================================================
+END OF PART 1 — PART 2 BELOW (DASHBOARD BUILD)
+================================================================
+
+
+
+
+================================================================
+PART 2 — THE DASHBOARD
+================================================================
+
+This is everything built to make the dashboard work:
+adding, editing, deleting, and viewing job applications.
+
+New files created:
+
+    app/dashboard/layout.tsx          <- nav bar for all dashboard pages
+    app/dashboard/page.tsx            <- the main dashboard screen
+    app/dashboard/actions.ts          <- database write operations
+    app/dashboard/new/page.tsx        <- add application form page
+    app/dashboard/[id]/edit/page.tsx  <- edit application form page
+
+    components/LogoutButton.tsx       <- log out button
+    components/StatusBadge.tsx        <- colored status pill
+    components/StatsCards.tsx         <- the 4 number tiles at top
+    components/StatusChart.tsx        <- the donut chart
+    components/ApplicationTable.tsx   <- the table of applications
+    components/ApplicationForm.tsx    <- the shared add/edit form
+
+
+================================================================
+HOW THE DASHBOARD PAGES NEST
+================================================================
+
+In Next.js, if you put a layout.tsx inside a folder, it wraps
+every page inside that folder. So:
+
+    app/
+      dashboard/
+        layout.tsx    <- wraps ALL dashboard pages (nav bar lives here)
+        page.tsx      <- the main dashboard   (/dashboard)
+        new/
+          page.tsx    <- add application page (/dashboard/new)
+        [id]/
+          edit/
+            page.tsx  <- edit page (/dashboard/abc123/edit)
+
+The [id] folder is special — the square brackets mean it's a
+DYNAMIC route. Whatever is in the URL at that position gets
+captured as the variable "id". So:
+
+    /dashboard/abc123/edit  ->  id = "abc123"
+    /dashboard/xyz789/edit  ->  id = "xyz789"
+
+This lets one file handle editing ANY application, not just one.
+
+
+================================================================
+1. app/dashboard/layout.tsx — The nav bar
+================================================================
+
+    export default async function DashboardLayout({ children }) {
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      return (
+        <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950">
+          <header>
+            <Logo size="sm" />
+            <span>{user?.email}</span>
+            <ThemeToggle />
+            <LogoutButton />
+          </header>
+          <main className="max-w-7xl mx-auto px-6 py-8">
+            {children}
+          </main>
+        </div>
+      )
+    }
+
+Notice this function is "async" — it runs on the SERVER before
+the page is sent to your browser. It fetches the logged-in user's
+info from Supabase to show their email in the nav.
+
+"async" on a layout or page component means: do some data
+fetching first, THEN return the HTML. The user's browser waits
+for the server to finish and gets the fully-built page.
+
+max-w-7xl mx-auto means: cap the content width at 1280px and
+center it — this is what makes the layout "wide" without
+stretching on giant monitors.
+
+{children} again means "render whichever dashboard page the
+user is on, right here."
+
+
+================================================================
+2. components/LogoutButton.tsx — Signing out
+================================================================
+
+    'use client'
+
+    export function LogoutButton() {
+      const router = useRouter()
+
+      async function handleLogout() {
+        const supabase = createClient()
+        await supabase.auth.signOut()
+        router.push('/')
+        router.refresh()
+      }
+
+      return <button onClick={handleLogout}>Log out</button>
+    }
+
+This is a client component because it needs onClick to work.
+
+supabase.auth.signOut() tells Supabase to clear the session
+(the "proof you're logged in" stored in your browser cookies).
+After that, router.push('/') sends the user back to the landing
+page, and router.refresh() forces Next.js to re-check auth state
+so the middleware knows the session is gone.
+
+
+================================================================
+3. app/dashboard/actions.ts — Writing to the database
+================================================================
+
+    'use server'
+
+This is the opposite of 'use client'. It tells Next.js that
+every function in this file runs ONLY on the server — never
+in the browser. This is called a Server Action.
+
+Why does it matter? Because this is where we write to the
+database. You never want database write logic running in the
+browser where anyone could see or tamper with it.
+
+----
+
+    export async function createApplication(formData: FormData) {
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) redirect('/auth/login')
+
+FormData is a built-in browser/server object that holds all the
+values from a submitted form. When the user fills in Company,
+Role, Status etc. and hits Save, all those values arrive here
+inside formData.
+
+We always fetch the user first and check they're logged in.
+If somehow someone calls this function without being logged in,
+we immediately redirect them. This is a security check.
+
+----
+
+      await supabase.from('applications').insert({
+        user_id: user.id,
+        company: formData.get('company') as string,
+        ...
+      })
+
+supabase.from('applications') points at the applications table
+in the database (the one we created with the SQL schema).
+
+.insert({...}) adds a new row with the values we provide.
+formData.get('company') pulls the value the user typed in
+the Company field out of the form.
+
+user_id: user.id attaches this row to the logged-in user.
+This is how Row Level Security works — every row knows which
+user owns it, and Supabase blocks other users from reading it.
+
+----
+
+      revalidatePath('/dashboard')
+      redirect('/dashboard')
+
+revalidatePath tells Next.js: "the data on /dashboard is now
+outdated, throw away the cached version." Next time someone
+visits the dashboard, it fetches fresh data from the database.
+
+redirect('/dashboard') then sends the user back to the
+dashboard to see their newly added application.
+
+----
+
+The three functions follow the same pattern:
+
+  createApplication   ->  supabase.insert()   (add a new row)
+  updateApplication   ->  supabase.update()   (change an existing row)
+  deleteApplication   ->  supabase.delete()   (remove a row)
+
+For update and delete, we use .eq('id', id).eq('user_id', user.id)
+The .eq() calls are filters — "only change the row WHERE id
+matches AND user_id matches the logged-in user." This prevents
+one user from editing another user's data.
+
+
+================================================================
+4. app/dashboard/page.tsx — The main dashboard (Server Component)
+================================================================
+
+    export default async function DashboardPage() {
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      const { data } = await supabase
+        .from('applications')
+        .select('*')
+        .eq('user_id', user!.id)
+        .order('created_at', { ascending: false })
+
+      const apps: Application[] = data ?? []
+
+This page has NO 'use client'. It's a Server Component — it runs
+entirely on the server and fetches data before anything reaches
+your browser.
+
+.select('*')              = fetch all columns
+.eq('user_id', user!.id)  = only rows belonging to this user
+.order('created_at', { ascending: false }) = newest first
+
+data ?? [] means: use "data" if it exists, otherwise use an
+empty array []. This handles the case where the user has no
+applications yet — we give the components an empty list
+instead of null, which would crash them.
+
+----
+
+      return (
+        <div className="space-y-6">
+          <StatsCards apps={apps} />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <StatusChart apps={apps} />
+            <ApplicationTable apps={apps} />
+          </div>
+        </div>
+      )
+
+The dashboard passes the same apps array down to all three
+components — StatsCards, StatusChart, and ApplicationTable.
+This is called "props" (properties). The server fetches the
+data once, then hands it to every component that needs it.
+
+grid grid-cols-1 lg:grid-cols-3 means:
+  - On small screens: single column (everything stacked)
+  - On large screens: 3 columns side by side
+
+lg: is a Tailwind breakpoint prefix, just like dark: is for
+dark mode. lg: means "apply this style on large screens only."
+
+
+================================================================
+5. components/StatsCards.tsx — The 4 number tiles
+================================================================
+
+    export function StatsCards({ apps }: { apps: Application[] }) {
+      const total = apps.length
+      const applied = apps.filter(a => a.status === 'Applied').length
+      const interview = apps.filter(a => a.status === 'Interview').length
+      const offer = apps.filter(a => a.status === 'Offer').length
+
+No 'use client' needed — this component just receives data and
+displays it. No clicking, no typing, no state. Pure server-side.
+
+apps.length gives the total count of all applications.
+apps.filter(...) creates a new array containing only items
+where the condition is true, then .length counts them.
+
+So apps.filter(a => a.status === 'Applied').length means:
+"give me every application where status equals 'Applied',
+then count how many there are."
+
+----
+
+      const cards = [
+        { label: 'Total',       value: total,     color: 'text-gray-900 dark:text-white' },
+        { label: 'Applied',     value: applied,   color: 'text-blue-600 dark:text-blue-400' },
+        { label: 'Interviewing',value: interview, color: 'text-yellow-600 dark:text-yellow-400' },
+        { label: 'Offers',      value: offer,     color: 'text-green-600 dark:text-green-400' },
+      ]
+
+Instead of writing 4 separate card blocks (lots of repeated
+HTML), we put the data in an array and loop over it. Each
+object has label (the title), value (the number), and color
+(the Tailwind class for that number's color).
+
+----
+
+      return (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {cards.map(c => (
+            <div key={c.label}>
+              <p>{c.label}</p>
+              <p className={c.color}>{c.value}</p>
+            </div>
+          ))}
+        </div>
+      )
+
+.map() loops over the array and turns each item into a piece
+of HTML. This produces 4 card divs from 4 lines of data.
+
+key={c.label} is required by React when you use .map() — it
+helps React track which item is which when the list changes.
+
+className={c.color} uses the color string from our array as
+the Tailwind class. So the number on the "Offers" card gets
+text-green-600 applied automatically.
+
+
+================================================================
+6. components/StatusBadge.tsx — The colored status pill
+================================================================
+
+    const styles: Record<Status, string> = {
+      Applied:   'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+      Interview: 'bg-yellow-100 text-yellow-700 ...',
+      Offer:     'bg-green-100 text-green-700 ...',
+      Rejected:  'bg-red-100 text-red-700 ...',
+    }
+
+    export function StatusBadge({ status }: { status: Status }) {
+      return (
+        <span className={`... ${styles[status]}`}>
+          {status}
+        </span>
+      )
+    }
+
+Record<Status, string> is a TypeScript type — it means this
+object must have exactly one key for each Status value
+(Applied, Interview, Offer, Rejected) and each value must
+be a string.
+
+styles[status] looks up the color classes for whichever status
+is passed in. If status is 'Offer', it gets the green classes.
+
+dark:bg-blue-900/40 means "in dark mode, use blue-900 color
+at 40% opacity." The /40 is Tailwind's opacity modifier.
+
+The result: a little colored pill that automatically picks
+the right color based on the status value.
+
+
+================================================================
+7. components/StatusChart.tsx — The donut chart
+================================================================
+
+    'use client'
+
+    import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+
+Recharts is a charting library. We import the specific pieces
+we need — like importing individual tools from a toolbox instead
+of the whole toolbox.
+
+This must be 'use client' because charts are drawn using the
+browser's canvas/SVG system, which doesn't exist on the server.
+
+----
+
+    const COLORS: Record<Status, string> = {
+      Applied:   '#3B82F6',   // blue
+      Interview: '#EAB308',   // yellow
+      Offer:     '#22C55E',   // green
+      Rejected:  '#EF4444',   // red
+    }
+
+Hex color codes for each status — these are the actual colors
+drawn in the chart segments.
+
+----
+
+    const counts: Record<Status, number> = { Applied: 0, Interview: 0, Offer: 0, Rejected: 0 }
+    apps.forEach(a => counts[a.status]++)
+
+Start all counts at 0. Then loop through every application and
+add 1 to whichever status that application has. After this loop,
+counts might look like: { Applied: 5, Interview: 2, Offer: 1, Rejected: 3 }.
+
+----
+
+    const data = (Object.entries(counts) as [Status, number][])
+      .filter(([, v]) => v > 0)
+      .map(([name, value]) => ({ name, value }))
+
+Object.entries(counts) turns the object into an array of pairs:
+  [['Applied', 5], ['Interview', 2], ['Offer', 1], ['Rejected', 3]]
+
+.filter(([, v]) => v > 0) removes any status with 0 applications
+(no point showing a 0-slice in the chart).
+
+.map(([name, value]) => ({ name, value })) reshapes each pair
+into the format Recharts expects: { name: 'Applied', value: 5 }.
+
+----
+
+    <ResponsiveContainer width="100%" height={220}>
+      <PieChart>
+        <Pie data={data} innerRadius={55} outerRadius={85} dataKey="value">
+          {data.map((entry) => (
+            <Cell key={entry.name} fill={COLORS[entry.name as Status]} />
+          ))}
+        </Pie>
+        <Tooltip />
+        <Legend />
+      </PieChart>
+    </ResponsiveContainer>
+
+ResponsiveContainer makes the chart stretch to fill whatever
+width its parent gives it (instead of a fixed pixel size).
+
+innerRadius={55} outerRadius={85} creates the donut hole in
+the middle. If innerRadius was 0, it would be a full pie chart.
+
+Each <Cell> is one colored segment. It gets its color from
+our COLORS lookup table using the status name.
+
+<Tooltip /> shows a popup when you hover over a segment.
+<Legend /> shows the color labels (Applied, Interview etc.)
+below the chart.
+
+
+================================================================
+8. components/ApplicationTable.tsx — The table
+================================================================
+
+    'use client'
+
+    export function ApplicationTable({ apps }: { apps: Application[] }) {
+      const [deleting, setDeleting] = useState<string | null>(null)
+
+This needs 'use client' because it has a Delete button that
+needs to respond to clicks, and useState to track which row
+is currently being deleted.
+
+deleting holds the id of the application being deleted right
+now (or null if nothing is being deleted). We use this to
+show "..." instead of "Delete" on that specific row while
+we wait for the server to finish.
+
+----
+
+      async function handleDelete(id: string) {
+        if (!confirm('Delete this application?')) return
+        setDeleting(id)
+        await deleteApplication(id)
+        setDeleting(null)
+      }
+
+confirm() shows a browser popup asking "Delete this application?"
+with OK/Cancel buttons. If the user clicks Cancel, confirm()
+returns false and we return early — nothing happens.
+
+If they click OK, we set the deleting state to this id (shows
+the "..." spinner on that row), then call the server action
+deleteApplication. This is a Server Action we imported from
+actions.ts — even though we're in a client component, calling
+it sends a request to the server to do the actual database work.
+
+----
+
+      {apps.map(app => (
+        <tr key={app.id}>
+          <td>{app.company}</td>
+          <td>{app.role}</td>
+          <td><StatusBadge status={app.status} /></td>
+          <td>{app.applied_date
+            ? new Date(app.applied_date + 'T00:00:00').toLocaleDateString()
+            : '—'}
+          </td>
+          <td>
+            <Link href={`/dashboard/${app.id}/edit`}>Edit</Link>
+            <button onClick={() => handleDelete(app.id)}>Delete</button>
+          </td>
+        </tr>
+      ))}
+
+new Date(app.applied_date + 'T00:00:00').toLocaleDateString()
+converts the stored date string ("2026-05-31") into a nicely
+formatted local date ("5/31/2026" or "31/05/2026" depending on
+your region). We add 'T00:00:00' to avoid timezone issues where
+the date might shift by one day.
+
+The Edit link uses a template literal (backtick string) to
+build the URL dynamically:
+  `/dashboard/${app.id}/edit`  ->  /dashboard/abc123/edit
+
+Each row links to its own unique edit page using the app's id.
+
+
+================================================================
+9. components/ApplicationForm.tsx — The shared form
+================================================================
+
+    'use client'
+
+    interface Props {
+      action: (formData: FormData) => Promise<void>
+      initial?: Partial<Application>
+    }
+
+    export function ApplicationForm({ action, initial }: Props) {
+
+This form is reused for BOTH adding and editing. The trick is
+the "action" prop — a function that gets passed in from outside.
+
+  When adding:    action = createApplication (from actions.ts)
+  When editing:   action = a wrapper around updateApplication
+
+interface Props defines the shape of what this component accepts:
+  action    : a function that takes FormData and returns a Promise
+  initial?  : optional starting values (used when editing)
+
+The ? means it's optional — when adding, we don't pass initial,
+so all fields start blank. When editing, we pass the existing
+application data so the fields are pre-filled.
+
+----
+
+      const [pending, startTransition] = useTransition()
+
+useTransition is a React hook for tracking when an async
+operation is in progress. pending is true while the server
+action is running, false when it's done.
+
+----
+
+      function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+        e.preventDefault()
+        const formData = new FormData(e.currentTarget)
+        startTransition(() => action(formData))
+      }
+
+e.currentTarget is the form element itself. new FormData(form)
+automatically collects every input's name and value from that
+form into a FormData object — we don't need to manually pull
+each field like we did in the login form.
+
+startTransition wraps the server action call so React can
+track it and set pending = true while it runs.
+
+----
+
+      <input
+        name="company"
+        required
+        defaultValue={initial?.company ?? ''}
+
+name="company" is what FormData uses as the key — when the
+form submits, formData.get('company') will return whatever
+the user typed here.
+
+defaultValue={initial?.company ?? ''} means:
+  - If initial exists and has a company: pre-fill with it
+  - Otherwise: start with an empty string
+
+initial?. is optional chaining — if initial is undefined,
+it doesn't crash, it just returns undefined, and ?? '' catches
+that and gives us '' instead.
+
+----
+
+      <button disabled={pending}>
+        {pending ? 'Saving...' : 'Save'}
+      </button>
+      <button type="button" onClick={() => router.back()}>
+        Cancel
+      </button>
+
+disabled={pending} greys out Save while the server is working.
+router.back() navigates to the previous page — just like
+hitting the browser's back button.
+
+type="button" on Cancel is important — without it, clicking
+Cancel inside a form would also submit the form. type="button"
+tells the browser "this button does NOT submit the form."
+
+
+================================================================
+10. app/dashboard/new/page.tsx — Add application page
+================================================================
+
+    import { createApplication } from '@/app/dashboard/actions'
+    import { ApplicationForm } from '@/components/ApplicationForm'
+
+    export default function NewApplicationPage() {
+      return (
+        <ApplicationForm action={createApplication} />
+      )
+    }
+
+This page is just 3 lines of real logic — it hands createApplication
+as the action to ApplicationForm. When the user fills in the
+form and hits Save, createApplication runs on the server,
+inserts a new row, and redirects back to /dashboard.
+
+No 'use client', no useState — pure server component that
+delegates all the work to ApplicationForm.
+
+
+================================================================
+11. app/dashboard/[id]/edit/page.tsx — Edit application page
+================================================================
+
+    export default async function EditApplicationPage({
+      params,
+    }: {
+      params: Promise<{ id: string }>
+    }) {
+      const { id } = await params
+
+In Next.js 16, route params are a Promise. We await them to
+get the actual id value from the URL. If the URL is
+/dashboard/abc123/edit, then id = "abc123".
+
+----
+
+      const { data: app } = await supabase
+        .from('applications')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user!.id)
+        .single()
+
+      if (!app) notFound()
+
+.single() returns one row instead of an array. If no row
+matches, data will be null. We also check user_id — this
+prevents user A from editing user B's applications by typing
+a different id in the URL.
+
+notFound() is a Next.js function that renders a 404 page.
+
+----
+
+      async function action(formData: FormData) {
+        'use server'
+        await updateApplication(id, formData)
+      }
+
+      return <ApplicationForm action={action} initial={app} />
+
+We create a mini server action right here inline — it wraps
+updateApplication and locks in the id from the URL. This
+wrapper has the right signature (just formData) that
+ApplicationForm expects.
+
+initial={app} pre-fills all the form fields with the existing
+application data so the user sees what's already saved and
+can change just what they want.
+
+
+================================================================
+THE BIG PICTURE — HOW THE DASHBOARD ALL CONNECTS
+================================================================
+
+When you visit /dashboard:
+
+    1. middleware.ts checks — are you logged in?
+       No  -> redirect to /auth/login
+       Yes -> continue
+
+    2. dashboard/layout.tsx runs on server
+       -> fetches your email from Supabase
+       -> renders the nav bar around everything
+
+    3. dashboard/page.tsx runs on server
+       -> fetches all YOUR applications from Supabase
+       -> passes the data down to child components as props
+
+    4. StatsCards receives apps -> counts by status -> renders 4 tiles
+       StatusChart receives apps -> builds chart data -> renders donut
+       ApplicationTable receives apps -> renders one row per app
+
+When you click "+ Add Application":
+
+    1. Browser navigates to /dashboard/new
+    2. ApplicationForm renders with empty fields
+    3. You fill in the form and hit Save
+    4. handleSubmit collects all field values into FormData
+    5. startTransition calls createApplication (Server Action)
+    6. Server inserts row into Supabase database
+    7. revalidatePath clears the dashboard cache
+    8. redirect sends you back to /dashboard
+    9. Dashboard re-fetches data -> your new application appears
+
+When you click Delete on a row:
+
+    1. confirm() popup asks "are you sure?"
+    2. setDeleting(id) shows "..." on that row
+    3. deleteApplication(id) runs on server
+    4. Server deletes the row from Supabase
+    5. revalidatePath clears the dashboard cache
+    6. Dashboard refreshes -> row is gone
+
+
+================================================================
+KEY NEW CONCEPTS FROM PART 2
+================================================================
+
+1. Server Components (no 'use client')
+   Fetch data on the server before sending HTML to the browser.
+   Use these for pages that display data — they're faster and
+   more secure because the database logic never reaches the browser.
+
+2. Server Actions ('use server')
+   Functions that run on the server but can be called from
+   the browser. Used for writes: insert, update, delete.
+   Safe because the database password never leaves the server.
+
+3. revalidatePath
+   After a write, this tells Next.js to throw away its cached
+   version of a page so the next visit fetches fresh data.
+
+4. Dynamic routes [id]
+   Square brackets in a folder name capture a URL segment as
+   a variable. /dashboard/abc123/edit -> id = "abc123".
+
+5. Props
+   Data passed from a parent component to a child component.
+   Like function arguments but for React components.
+   dashboard/page.tsx fetches data and passes it as props to
+   StatsCards, StatusChart, and ApplicationTable.
+
+6. .filter() and .map()
+   Array methods used constantly in React.
+   .filter() keeps only items matching a condition.
+   .map() transforms every item in an array into something else
+   (usually JSX — a piece of HTML).
+
+7. Optional chaining ?.
+   initial?.company means "if initial exists, give me company.
+   If initial is null or undefined, don't crash — just give undefined."
+
+8. Nullish coalescing ??
+   value ?? fallback means "use value if it's not null/undefined,
+   otherwise use fallback."
+   data ?? [] means "use data if it exists, otherwise use []."
+
+================================================================
+END OF EXPLANATION
+================================================================
+
+
+
+
+================================================================
+PART 3 — RESUME UPLOAD FEATURE + SUPABASE STORAGE
+================================================================
+
+This is everything added today: a full Resume section where users
+can upload, categorize, download, and delete their resumes.
+
+New files created:
+
+    app/dashboard/resumes/page.tsx        <- the Resumes page
+    app/dashboard/resumes/actions.ts      <- server actions for resumes
+    components/ResumeUploadForm.tsx       <- the upload form
+    components/ResumeList.tsx             <- the list with download/delete
+    components/DashboardNav.tsx           <- the tab nav (Applications | Resumes)
+
+Files updated:
+
+    lib/types.ts                          <- added Resume type + categories
+    app/dashboard/layout.tsx              <- added DashboardNav below the header
+    components/ApplicationTable.tsx       <- fixed date formatting bug
+
+
+================================================================
+WHAT WAS SET UP IN SUPABASE AND WHY
+================================================================
+
+Two things were set up in Supabase today: a database table and
+a storage bucket. Here's why both were needed:
+
+----
+
+DATABASE TABLE (SQL Editor)
+
+    create table public.resumes (
+      id          uuid primary key default gen_random_uuid(),
+      user_id     uuid references auth.users(id) on delete cascade not null,
+      name        text not null,
+      category    text not null,
+      file_path   text not null,
+      file_size   integer,
+      created_at  timestamptz default now()
+    );
+
+Why this table exists: Supabase Storage holds the actual file
+(the PDF bytes), but we still need a database row to remember
+metadata about each file — what the user named it, which domain
+category it belongs to, how big it is, and when it was uploaded.
+Without this table, we'd have no way to show a list of resumes
+with their labels and categories.
+
+  id          : a unique ID for each resume row (auto-generated UUID)
+  user_id     : which user owns this resume — links to auth.users
+  name        : the label the user gave their resume
+  category    : the domain (e.g. "Software Engineering")
+  file_path   : the path inside the Storage bucket (e.g. "user-id/uuid.pdf")
+                We store the path so we can download the file later
+  file_size   : stored in bytes so we can show "130 KB" in the UI
+  created_at  : auto-set to the current time when the row is inserted
+
+"on delete cascade" means: if a user's account is deleted, all
+their resume rows are automatically deleted too. No orphan data.
+
+----
+
+ROW LEVEL SECURITY on the resumes table:
+
+    alter table public.resumes enable row level security;
+    create policy "own resumes only" on public.resumes
+      using (user_id = auth.uid())
+      with check (user_id = auth.uid());
+
+Same idea as the applications table. Supabase checks this rule
+on every database read and write. auth.uid() is the ID of whoever
+is currently logged in. This means:
+  - You can only SELECT (read) rows where user_id = your ID
+  - You can only INSERT rows where user_id = your ID
+  - You can only DELETE rows where user_id = your ID
+
+Even if someone knew another user's resume ID, they could never
+read or delete it — the database itself blocks them.
+
+----
+
+STORAGE BUCKET ("Resumes")
+
+Why a storage bucket? A database table can store text and numbers
+efficiently, but it's not designed to store files (PDFs, Word docs).
+Supabase Storage is the purpose-built file storage system —
+like a private Google Drive for your app. Files are stored there,
+and the database just remembers the file path.
+
+The bucket was created as PRIVATE — meaning files cannot be
+accessed by anyone via a public URL. To download a file, you
+must request a temporary signed URL through the Supabase API,
+which automatically checks that you are the owner.
+
+----
+
+STORAGE RLS POLICIES (3 policies added)
+
+    auth.uid()::text = (storage.foldername(name))[1]
+
+This is the same user-isolation idea, but applied to files
+instead of database rows. Here's what it means broken down:
+
+  storage.foldername(name)   : extracts the folder portion of the
+                               file path. Our paths look like:
+                               "user-id-abc123/filename.pdf"
+                               So foldername gives ["user-id-abc123"]
+
+  [1]                        : gets the first folder segment
+                               (the user ID we put there)
+
+  auth.uid()::text           : the ID of the currently logged-in user,
+                               cast to text (::text) for comparison
+
+So the full expression says: "the first folder in this file's
+path must equal the logged-in user's ID." This works because
+when we upload a file, we always put it at:
+
+    {user.id}/{random-uuid}.pdf
+
+So only the owner's user ID ever appears in the path.
+
+Three operations each got this policy:
+  SELECT  -> only download your own files
+  INSERT  -> only upload into your own folder
+  DELETE  -> only delete your own files
+
+
+================================================================
+1. lib/types.ts — New Resume types added
+================================================================
+
+    export const RESUME_CATEGORIES = [
+      'Software Engineering',
+      'Data Science',
+      'Product Management',
+      'Design / UX',
+      'Marketing',
+      'Finance',
+      'DevOps / Cloud',
+      'Other',
+    ] as const
+
+    export type ResumeCategory = typeof RESUME_CATEGORIES[number]
+
+"as const" tells TypeScript to treat this array as a fixed,
+read-only list — the values can never be changed. Without it,
+TypeScript would see it as a general string[] and lose the
+specific value information.
+
+"typeof RESUME_CATEGORIES[number]" automatically creates a union
+type from the array:
+  ResumeCategory = 'Software Engineering' | 'Data Science' | ...
+
+This means anywhere we use ResumeCategory, TypeScript will flag
+an error if someone types a category that isn't in the list.
+
+----
+
+    export interface Resume {
+      id: string
+      user_id: string
+      name: string
+      category: string
+      file_path: string
+      file_size: number | null
+      created_at: string
+    }
+
+This mirrors the database table columns exactly. When Supabase
+returns a row, TypeScript knows the shape of the data.
+"number | null" means file_size can be a number OR null — we
+made it optional in the DB (integer, no "not null") because in
+theory the size might not always be known.
+
+
+================================================================
+2. app/dashboard/resumes/actions.ts — Server Actions for resumes
+================================================================
+
+    'use server'
+
+    export async function saveResumeMetadata(
+      filePath: string,
+      name: string,
+      category: string,
+      fileSize: number | null
+    ) {
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) redirect('/auth/login')
+
+      await supabase.from('resumes').insert({
+        user_id: user.id,
+        name,
+        category,
+        file_path: filePath,
+        file_size: fileSize,
+      })
+
+      revalidatePath('/dashboard/resumes')
+    }
+
+Why a separate server action just for metadata? Because the
+file itself is uploaded directly from the browser to Supabase
+Storage (the ResumeUploadForm does that using the browser client).
+Once the upload is done, we call this server action to save
+the metadata row. The server action verifies the user session
+server-side — we never trust the user_id sent from the browser.
+
+----
+
+    export async function deleteResume(id: string, filePath: string) {
+      await supabase.storage.from('Resumes').remove([filePath])
+
+      await supabase
+        .from('resumes')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id)
+
+      revalidatePath('/dashboard/resumes')
+    }
+
+Delete does two things in order:
+  1. Remove the actual file from Storage (using the path we stored)
+  2. Remove the metadata row from the database
+
+.remove([filePath]) takes an array of paths — we pass one path
+wrapped in [] because the function expects an array.
+
+Both deletes use the user_id check (.eq('user_id', user.id))
+so nobody can delete someone else's files even if they know the ID.
+
+
+================================================================
+3. components/ResumeUploadForm.tsx — The upload form
+================================================================
+
+    'use client'
+
+This must be 'use client' because it handles file selection,
+tracks state (which file is selected, whether uploading, errors),
+and responds to form submit events — all browser interactions.
+
+----
+
+    const [file, setFile] = useState<File | null>(null)
+    const [name, setName] = useState('')
+    const [category, setCategory] = useState<ResumeCategory>(RESUME_CATEGORIES[0])
+    const [uploading, setUploading] = useState(false)
+    const [error, setError] = useState('')
+    const [success, setSuccess] = useState(false)
+    const inputRef = useRef<HTMLInputElement>(null)
+
+State values tracked:
+  file       : the File object the user selected
+  name       : the label they typed
+  category   : the selected domain
+  uploading  : true while the upload is in progress
+  error      : any error message to show
+  success    : true briefly after a successful upload
+
+useRef gives us a direct reference to the file input element
+so we can reset it (inputRef.current.value = '') after upload
+since file inputs can't be controlled with useState.
+
+----
+
+    async function handleSubmit(e: React.FormEvent) {
+      e.preventDefault()
+      ...
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      const ext = file.name.split('.').pop()
+      const filePath = `${user.id}/${crypto.randomUUID()}.${ext}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('Resumes')
+        .upload(filePath, file)
+
+The upload flow:
+  1. Get the file extension (.pdf, .docx etc.) by splitting on '.'
+     and taking the last segment with .pop()
+  2. Build a unique file path: "user-id/random-uuid.pdf"
+     crypto.randomUUID() generates a random ID so two files with
+     the same name never overwrite each other
+  3. Upload the file bytes to Supabase Storage
+  4. If that succeeds, call saveResumeMetadata() (Server Action)
+     to save the name, category, path etc. to the database
+
+----
+
+      if (uploadError) throw uploadError
+
+      await saveResumeMetadata(filePath, name.trim() || file.name, category, file.size)
+
+name.trim() || file.name means: use the label the user typed
+(with whitespace removed), but if they left it blank, fall back
+to the original filename.
+
+----
+
+      setFile(null)
+      setName('')
+      if (inputRef.current) inputRef.current.value = ''
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 3000)
+
+After a successful upload we reset all the form fields and show
+a green "uploaded successfully" message. setTimeout removes the
+success message after 3 seconds automatically.
+
+----
+
+    <input
+      type="file"
+      accept=".pdf,.doc,.docx"
+
+"accept" restricts the file picker to only show PDF and Word
+documents — the user can't accidentally select an image or video.
+
+
+================================================================
+4. components/ResumeList.tsx — The resume list
+================================================================
+
+    'use client'
+
+    async function handleDownload(resume: Resume) {
+      const supabase = createClient()
+      const { data, error } = await supabase.storage
+        .from('Resumes')
+        .createSignedUrl(resume.file_path, 60, { download: resume.name })
+
+      if (!error && data?.signedUrl) {
+        const a = document.createElement('a')
+        a.href = data.signedUrl
+        a.download = resume.name
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      }
+    }
+
+Why createSignedUrl? The storage bucket is private — files have
+no public URL. createSignedUrl generates a temporary URL that
+expires after 60 seconds. Only someone with that URL can
+download the file, and it expires almost immediately.
+
+{ download: resume.name } tells Supabase to set the
+Content-Disposition header on the response, which forces the
+browser to download the file with the correct filename instead
+of trying to open it in the browser.
+
+The anchor trick (creating an <a> element programmatically,
+clicking it, then removing it) is the standard browser way to
+trigger a file download from JavaScript without navigating away
+from the page.
+
+----
+
+    const grouped = resumes.reduce<Record<string, Resume[]>>((acc, r) => {
+      if (!acc[r.category]) acc[r.category] = []
+      acc[r.category].push(r)
+      return acc
+    }, {})
+
+.reduce() is an array method that builds up a single value from
+an array. Here it builds an object where each key is a category
+name and the value is an array of resumes in that category.
+
+Starting from {} (empty object), for each resume:
+  - If there's no array for its category yet, create one
+  - Push the resume into that category's array
+
+Result example:
+  {
+    'Software Engineering': [resume1, resume2],
+    'Data Science': [resume3],
+  }
+
+Then we loop over Object.entries(grouped) to render each
+category as its own section with a heading.
+
+
+================================================================
+5. components/DashboardNav.tsx — The tab navigation
+================================================================
+
+    'use client'
+
+    import { usePathname } from 'next/navigation'
+
+This must be 'use client' because usePathname reads the current
+URL from the browser — it's not available on the server.
+
+----
+
+    const links = [
+      { href: '/dashboard', label: 'Applications' },
+      { href: '/dashboard/resumes', label: 'Resumes' },
+    ]
+
+    const active =
+      href === '/dashboard'
+        ? pathname === '/dashboard'
+        : pathname.startsWith(href)
+
+The active check handles a tricky case: '/dashboard' is a
+prefix of '/dashboard/resumes'. If we used startsWith for both,
+the Applications link would appear active on the Resumes page too.
+
+So for the Applications link we use an exact match (===),
+and for the Resumes link we use startsWith (to also match any
+future sub-pages like /dashboard/resumes/new).
+
+----
+
+    className={`... border-b-2 ${
+      active
+        ? 'border-indigo-600 text-indigo-600 ...'
+        : 'border-transparent text-gray-500 ...'
+    }`}
+
+Active tab: indigo text + indigo underline.
+Inactive tab: gray text + transparent border (so the height stays
+the same, it's just invisible — prevents the layout shifting).
+
+
+================================================================
+6. app/dashboard/layout.tsx — Updated with DashboardNav
+================================================================
+
+Added one import and one component to the layout:
+
+    import { DashboardNav } from '@/components/DashboardNav'
+
+    ...
+
+    <header>...</header>
+    <DashboardNav />           <- new line added between header and main
+    <main>...</main>
+
+DashboardNav sits between the top header and the page content,
+acting as a second navigation layer just for the dashboard.
+Because it's in layout.tsx, it automatically appears on EVERY
+dashboard page (Applications, Resumes, and any future pages).
+
+
+================================================================
+7. BUG FIX — Date hydration error in ApplicationTable.tsx
+================================================================
+
+The date column was showing a hydration error in the browser
+console. The cause:
+
+    new Date(...).toLocaleDateString()   <- OLD (broken)
+
+toLocaleDateString() without a locale argument uses the system's
+locale. The server (running in a data center) had a different
+locale to the user's browser. So the server rendered "28/5/2026"
+(European format) but the browser expected "5/28/2026" (US format).
+React detected the mismatch and threw a hydration error.
+
+The fix — pin the locale explicitly:
+
+    new Date(...).toLocaleDateString('en-US')   <- NEW (fixed)
+
+Now both the server and the browser always use 'en-US' format,
+so the rendered HTML always matches.
+
+
+================================================================
+THE BIG PICTURE — HOW THE RESUME FEATURE ALL CONNECTS
+================================================================
+
+When you visit /dashboard/resumes:
+
+    1. middleware.ts checks auth — are you logged in?
+    2. dashboard/layout.tsx renders: header + DashboardNav + page
+    3. dashboard/resumes/page.tsx runs on the server
+       -> fetches all your resume rows from the database
+       -> passes them as props to ResumeList
+    4. ResumeUploadForm renders on the left (client component)
+       ResumeList renders on the right with resumes grouped by category
+
+When you upload a resume:
+
+    1. User selects a PDF file and picks a category
+    2. handleSubmit fires in ResumeUploadForm (browser)
+    3. File is uploaded directly to Supabase Storage ("Resumes" bucket)
+       Path: "{user.id}/{random-uuid}.pdf"
+    4. saveResumeMetadata() Server Action is called
+    5. Server verifies the user session, inserts a row in the
+       resumes table with the name, category, file_path, file_size
+    6. revalidatePath('/dashboard/resumes') clears the cache
+    7. Page re-renders — the new resume appears in the list
+
+When you download a resume:
+
+    1. handleDownload fires (browser)
+    2. createSignedUrl() generates a 60-second temporary URL
+       Supabase checks the RLS policy — is this your file?
+    3. A hidden <a> element is clicked programmatically
+    4. Browser downloads the file with the label name
+
+When you delete a resume:
+
+    1. confirm() popup asks "are you sure?"
+    2. deleteResume() Server Action runs on the server
+    3. Storage file is removed from the "Resumes" bucket
+    4. Database row is deleted from the resumes table
+    5. Page refreshes — resume is gone from the list
+
+
+================================================================
+KEY NEW CONCEPTS FROM PART 3
+================================================================
+
+1. Supabase Storage
+   Purpose-built file storage (like S3 or Google Drive for your app).
+   Separate from the database — stores actual file bytes.
+   Files are accessed via signed URLs, not public links.
+
+2. Signed URLs
+   Temporary URLs that expire after N seconds.
+   The only way to download from a private bucket.
+   Supabase checks your RLS policy before generating one —
+   if it's not your file, you get no URL.
+
+3. Two-step upload
+   The file bytes go browser -> Storage directly (fast, no server bottleneck).
+   The metadata goes browser -> Server Action -> Database (secure, auth-checked).
+   Both steps must succeed for the upload to be considered done.
+
+4. crypto.randomUUID()
+   Built into modern browsers and Node.js.
+   Generates a globally unique ID like "a3f8b2c1-...".
+   Used to give every uploaded file a unique path so files
+   with the same name never overwrite each other.
+
+5. useRef
+   Like useState but doesn't cause a re-render when it changes.
+   Used here to get a direct reference to the file <input> element
+   so we can reset it after upload (file inputs can't be reset
+   with a state variable the way text inputs can).
+
+6. .reduce()
+   An array method that folds an array into a single value.
+   Used here to group a flat list of resumes into an object
+   organized by category, so we can render them section by section.
+
+7. Hydration mismatch
+   Happens when the HTML the server sends doesn't match what
+   React builds in the browser. Common cause: locale-dependent
+   functions like toLocaleDateString(). Fix: always pass an
+   explicit locale so server and browser agree.
+
+================================================================
+END OF EXPLANATION
+================================================================
