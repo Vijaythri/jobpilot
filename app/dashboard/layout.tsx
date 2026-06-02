@@ -2,6 +2,7 @@
 import { Logo } from '@/components/Logo'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { LogoutButton } from '@/components/LogoutButton'
+import { DashboardNav } from '@/components/DashboardNav'
 import { createClient } from '@/lib/supabase/server'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -21,6 +22,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </div>
       </header>
       <main className="flex-1 w-full max-w-7xl mx-auto px-6 py-8">
+        <DashboardNav />
         {children}
       </main>
     </div>
