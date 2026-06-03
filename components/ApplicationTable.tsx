@@ -8,6 +8,7 @@ import { deleteApplication } from '@/app/dashboard/actions'
 
 export function ApplicationTable({ apps }: { apps: Application[] }) {
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
 
   async function handleDelete(id: string) {
     if (!confirm('Delete this application?')) return
@@ -15,6 +16,15 @@ export function ApplicationTable({ apps }: { apps: Application[] }) {
     await deleteApplication(id)
     setDeleting(null)
   }
+
+  const filtered = apps.filter(app => {
+    const q = query.toLowerCase()
+    return (
+      app.company.toLowerCase().includes(q) ||
+      app.role.toLowerCase().includes(q) ||
+      (app.applied_date ?? '').includes(q)
+    )
+  })
 
   if (apps.length === 0) {
     return (
@@ -32,6 +42,19 @@ export function ApplicationTable({ apps }: { apps: Application[] }) {
 
   return (
     <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+      <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
+        <input
+          type="text"
+          placeholder="Search by company, role, or date..."
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          className="w-full text-sm px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 outline-none focus:border-indigo-500 dark:focus:border-indigo-400"
+        />
+      </div>
+      {filtered.length === 0 && (
+        <p className="text-center text-sm text-gray-400 dark:text-gray-500 py-8">No results for &quot;{query}&quot;</p>
+      )}
+      {filtered.length > 0 && (
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
@@ -43,7 +66,7 @@ export function ApplicationTable({ apps }: { apps: Application[] }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-          {apps.map(app => (
+          {filtered.map(app => (
             <tr key={app.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
               <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
                 {app.job_url ? (
@@ -89,6 +112,7 @@ export function ApplicationTable({ apps }: { apps: Application[] }) {
           ))}
         </tbody>
       </table>
+      )}
     </div>
   )
 }
